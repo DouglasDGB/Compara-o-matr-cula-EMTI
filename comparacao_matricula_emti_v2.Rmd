@@ -1,0 +1,525 @@
+---
+title: "Resultado final do aluno"
+author: "Douglas Gonçalves Bernardo"
+date: "27/09/2022"
+---
+
+Solicito relatório com informações sobre os estudantes evadidos do EMTI em 2022 até a presente data, por escola, com identificação do estudante, especificação da série, do tipo (EMTI Propedêutico ou EMTI Profissional), da data da evasão e destino do estudante (Ensino Médio Regular, EJA, outra rede de ensino, fora da escola, etc). 
+
+```{r pacotes, include = FALSE}
+
+#1 Importacao dos pacotes do R
+
+library(readxl)
+library(writexl)
+library(tidyverse)
+library(data.table)
+library(rstudioapi)
+library(magrittr)
+library(googlesheets4)
+library(lubridate)
+library(tibbletime)
+library(timetk)
+```
+
+```{r diretorio, include = FALSE}
+
+#2. Definindo diretorio
+
+diretorio <- dirname(dirname(dirname(getSourceEditorContext()$path)))
+
+`%!in%` <- Negate(`%in%`)
+
+```
+
+```{r load, include = FALSE}
+
+#3 Definicao da funcao que carrega as bases, trata e grava o arquivo de matricula 21.03.2022
+
+setwd(file.path(diretorio,"entradas"))
+listaArquivos = c("tb_matricula","tb_enturmacao","tb_turma","tb_endereco")
+
+for (nometb in listaArquivos){
+  
+  df <- fread(file = list.files(pattern = nometb), sep = "|", encoding = "UTF-8", na.strings = "")
+  
+  #3.1 Retira a # do nome da primeira coluna
+  
+    primeiraColuna <- colnames(df)[1] %>% 
+      str_replace_all("#","")
+    setnames(df,colnames(df)[1],primeiraColuna)
+    
+    assign(nometb, df)
+    
+    rm(df)
+  }
+  
+  rm(nometb)
+ 
+  
+  #3.3 carga das tabelas do dia 03.03.2022
+  
+  setwd(file.path(diretorio,"diversos", "entradas"))
+listaArquivos = c("tb_matricula","tb_enturmacao","tb_turma","tb_endereco")
+
+for (nometb in listaArquivos){
+  
+  df <- fread(file = list.files(pattern = nometb), sep = "|", encoding = "UTF-8", na.strings = "")
+  
+  #3.3.1 Retira a # do nome da primeira coluna
+  
+    primeiraColuna <- colnames(df)[1] %>% 
+      str_replace_all("#","")
+    setnames(df,colnames(df)[1],primeiraColuna)
+    
+    assign(paste0(nometb,"_03"), df)
+    
+    rm(df)
+  }
+  
+  rm(nometb)
+  
+  
+  
+```
+
+```{r tratamento21, include=FALSE}
+
+#4. Tratamento das bases do simade
+
+   #4.1.Lista de enderecos principais e secundarios
+
+    t_endereco  <- tb_endereco  %>%
+      filter(tp_situacao_end == "Ativo",
+             tp_situacao_escola == "Em Atividade",
+             dc_dependencia == "Estadual") %>%
+      select(id_instituicao_endereco, fl_end_principal, id_escola) %>% 
+      unique()
+    
+    #4.2 lista de enderecos das escolas
+    
+    t_endereco_principal  <- tb_endereco  %>%
+       filter(tp_situacao_end == "Ativo",
+             tp_situacao_escola == "Em Atividade",
+             dc_dependencia == "Estadual",
+             fl_end_principal == "Sim") %>%
+      select(id_sre, dc_sre, id_municipio, dc_municipio, id_escola,
+             nome_escola, tp_zona_escola, dc_zona_diferenciada) %>% 
+      unique()
+    
+    
+    #4.3 lista de turmas
+    
+    t_turma  <- tb_turma  %>%
+      filter(ano_administrativo == 2022) %>% 
+             #fl_ativa == "Sim") %>% 
+      select(id_turma, nome_turma, fl_ativa, novo_simade, dc_tipo_ensino,
+             dc_nivel, dc_etapa, dc_turno,id_escola) %>%
+      unique()
+    
+  
+    #4.4 lista de matriculas enturmadas
+    
+    t_enturmacao  <- tb_enturmacao  %>% 
+      filter(is.na(dt_remanejamento),
+             is.na(dc_projeto),
+             fl_reforco_escolar == "Não"|is.na(fl_reforco_escolar),
+             dc_especificidade != "REFORÇO ESCOLAR") %>% 
+      select(id_matricula, id_turma, novo_simade) %>%
+      unique()
+    
+    #4.5 lista de matriculas ativas
+    
+    t_matricula  <- tb_matricula  %>%
+      filter(ano_administrativo == 2022,
+             #id_situacao_matricula == "A",
+             fl_prog_parcial == "Não",
+             fl_exclusivo_aee_projeto == "Não",
+             dc_tipo_ensino != "FORMAÇÃO INTEGRADA E CONTINUADA") %>% 
+      select(id_matricula, id_aluno, nome_aluno, novo_simade, id_escola,
+             id_situacao_matricula,dc_tipo_ensino, dc_motivo_encerramento,dt_inclusao_registro,id_escola,nome_escola) %>%
+      unique()
+    
+     t_matricula2  <- tb_matricula  %>%
+      filter(ano_administrativo == 2022,
+             id_situacao_matricula == "A",
+             fl_prog_parcial == "Não",
+             fl_exclusivo_aee_projeto == "Não",
+             dc_tipo_ensino != "FORMAÇÃO INTEGRADA E CONTINUADA") %>% 
+      select(id_matricula, id_aluno, nome_aluno, novo_simade, id_escola,
+             id_situacao_matricula,dc_tipo_ensino, dc_motivo_encerramento,dt_inclusao_registro,dc_nivel) %>%
+      unique()
+     
+
+ 
+
+
+```
+
+```{r tratamento03, include=FALSE}
+
+#4. Tratamento das bases do simade
+
+   #4.1.Lista de enderecos principais e secundarios
+
+    t_endereco_03  <- tb_endereco_03  %>%
+      filter(tp_situacao_end == "Ativo",
+             tp_situacao_escola == "Em Atividade",
+             dc_dependencia == "Estadual") %>%
+      select(id_instituicao_endereco, fl_end_principal, id_escola) %>% 
+      unique()
+    
+    #4.2 lista de enderecos das escolas
+    
+    t_endereco_principal_03  <- tb_endereco_03  %>%
+       filter(tp_situacao_end == "Ativo",
+             tp_situacao_escola == "Em Atividade",
+             dc_dependencia == "Estadual",
+             fl_end_principal == "Sim") %>%
+      select(id_sre, dc_sre, id_municipio, dc_municipio, id_escola,
+             nome_escola, tp_zona_escola, dc_zona_diferenciada) %>% 
+      unique()
+    
+    
+    #4.3 lista de turmas
+    
+   t_turma_03  <- tb_turma_03  %>%
+      filter(ano_administrativo == 2022,
+             fl_ativa == "Sim") %>% 
+      select(id_turma, novo_simade, dc_tipo_ensino,
+             dc_nivel, dc_etapa, dc_turno) %>%
+      unique()
+    
+  
+    #4.4 lista de matriculas enturmadas
+    
+    t_enturmacao_03  <- tb_enturmacao_03  %>% 
+      filter(is.na(dt_remanejamento),
+             is.na(dc_projeto),
+             fl_reforco_escolar == "Não"|is.na(fl_reforco_escolar),
+             dc_especificidade != "REFORÇO ESCOLAR") %>% 
+      select(id_matricula, id_turma, novo_simade) %>%
+      unique()
+    
+    #4.5 lista de matriculas ativas
+    
+    t_matricula_03  <- tb_matricula_03  %>%
+      filter(ano_administrativo == 2022,
+             id_situacao_matricula == "A",
+             fl_prog_parcial == "Não",
+             fl_exclusivo_aee_projeto == "Não",
+             dc_tipo_ensino != "FORMAÇÃO INTEGRADA E CONTINUADA") %>% 
+      select(id_matricula, id_aluno, nome_aluno, novo_simade, id_escola,nome_escola,dt_inclusao_registro,dt_alteracao_registro,id_situacao_matricula) %>%
+      unique()
+
+```
+
+```{r merge, include=FALSE}
+
+##matriculas inativas
+t_matricula_inativas  <- tb_matricula  %>%
+      filter(ano_administrativo == 2022,
+             id_situacao_matricula != "A",
+             fl_prog_parcial == "Não",
+             fl_exclusivo_aee_projeto == "Não",
+             dc_tipo_ensino != "FORMAÇÃO INTEGRADA E CONTINUADA",
+             dc_tipo_ensino %in% c("INTEGRAL", "INTEGRAL PROFISSIONAL"),
+             dc_nivel == "ENSINO MÉDIO") %>% 
+      select(id_matricula, id_aluno, nome_aluno, novo_simade, id_escola,
+             id_situacao_matricula,dc_tipo_ensino, dc_motivo_encerramento,dt_inclusao_registro,dc_nivel) %>%
+      unique() %>% 
+  mutate(dt_inclusao_registro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y")) %>% 
+  mutate(diferenca = as_date("2022/09/28") - dt_inclusao_registro) #%>% 
+  #count(id_aluno)
+
+
+inativos_duplicados <- t_matricula_inativas %>% 
+  left_join(t_matricula_inativas %>% filter(id_situacao_matricula != "A") %>% select(id_aluno), by = "id_aluno") %>% 
+  mutate(dt_inclusao_registro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y")) %>% 
+  mutate(diferenca = as_date("2022/09/28") - dt_inclusao_registro) %>% 
+  filter(dc_nivel == "ENSINO MÉDIO")
+  
+inativos_R_duplicados_v2 <- t_matricula_inativas %>% 
+  dplyr::group_by(id_aluno) %>% 
+  dplyr::summarise(diferenca = min(diferenca)) 
+  
+inativos_R_duplicados <- inativos_duplicados %>% 
+  dplyr::group_by(id_aluno) %>% 
+  dplyr::summarise(diferenca = min(diferenca))
+  
+
+motivo_encerramento <- inativos_R_duplicados_v2 %>% 
+  left_join(t_matricula_inativas, by = c("id_aluno","diferenca")) %>% 
+  filter(dc_tipo_ensino %in% c("INTEGRAL", "INTEGRAL PROFISSIONAL")) #%>% 
+  #filter(!dc_motivo_encerramento %in% c("Remanejado de modalidade","Transferido"))
+
+
+
+ #6 cruzamento de tabelas
+
+  #6.1 tabela geral com todas as turmas, matriculas e enturmacoes
+
+  #ATUAL 1573889
+
+  m_geral <- t_turma %>%
+  select(-dc_tipo_ensino,-id_escola) %>% 
+  inner_join(t_enturmacao, by = c("id_turma", "novo_simade")) %>%
+  inner_join(t_matricula, by = c("id_matricula", "novo_simade")) %>%
+  inner_join(t_endereco_principal, by = "id_escola") %>%
+  filter(id_situacao_matricula == "A") %>% 
+  mutate(dt_inclusao_registro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y")) %>% 
+  mutate(diferenca = as_date("2022/09/28") - dt_inclusao_registro) %>% 
+  select(id_aluno,dc_tipo_ensino, dc_nivel,diferenca) %>%
+  rename(dc_tipo_ensino_atual = dc_tipo_ensino,
+         dc_nivel_atual = dc_nivel)
+  
+  
+  m_geral_v2 <- m_geral %>% 
+  select(id_aluno,diferenca) %>% 
+  unique() %>% 
+  dplyr::group_by(id_aluno) %>% 
+  dplyr::summarise(diferenca = min(diferenca))
+  
+
+m_geral_v3 <- m_geral_v2 %>% 
+  inner_join(m_geral, by = c("id_aluno","diferenca")) 
+  
+  
+  
+  
+  m_geral_inativos <- t_turma %>%
+  select(-dc_tipo_ensino,-id_escola) %>% 
+  inner_join(t_enturmacao, by = c("id_turma", "novo_simade")) %>%
+  inner_join(t_matricula, by = c("id_matricula", "novo_simade")) %>%
+  inner_join(t_endereco_principal, by = "id_escola") %>%
+  filter(id_situacao_matricula != "A") %>% 
+  mutate(dt_inclusao_registro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y")) %>% 
+  mutate(diferenca = as_date("2022/09/28") - dt_inclusao_registro) %>% 
+  select(id_aluno,dc_tipo_ensino, dc_nivel,diferenca) %>% 
+    filter(dc_tipo_ensino %in% c("INTEGRAL", "INTEGRAL PROFISSIONAL"))
+  
+  
+ m_geral_v2_i <- m_geral_inativos %>% 
+  select(id_aluno,diferenca) %>% 
+  unique() %>% 
+  dplyr::group_by(id_aluno) %>% 
+  dplyr::summarise(diferenca = min(diferenca))
+  
+
+m_geral_v3_i <- m_geral_v2_i %>% 
+  inner_join(m_geral_inativos, by = c("id_aluno","diferenca")) %>% 
+  unique() 
+
+
+motivo_encerramento <- m_geral_v3_i %>% 
+  select(-dc_tipo_ensino,-dc_nivel) %>% 
+  left_join(t_matricula_inativas, by = c("id_aluno","diferenca")) %>% 
+  #mutate(matricula_inativa = id_situacao_matricula) %>% 
+  select(-id_situacao_matricula,-id_matricula:-dc_nivel,-diferenca) %>% 
+  inner_join(t_matricula_inativas,by = "id_aluno") %>% 
+  filter(id_situacao_matricula != "A",
+         dc_tipo_ensino %in% c("INTEGRAL", "INTEGRAL PROFISSIONAL")) %>%
+   select(-id_matricula:-dt_inclusao_registro) %>%
+     left_join(t_matricula,by = "id_aluno") %>% 
+  count(id_aluno) %>% 
+  mutate(fl_duplicado =ifelse(n > 1,1,0)) %>% 
+  filter(fl_duplicado == 0) %>% 
+  unique()
+
+
+  
+final <- motivo_encerramento %>% 
+  left_join(m_geral_v3_i, by = "id_aluno") %>% 
+  select(-dc_tipo_ensino) %>% 
+  left_join(t_matricula,by = "id_aluno") %>% 
+  select(id_aluno,nome_aluno,id_escola,nome_escola,dc_nivel,dc_tipo_ensino,dt_inclusao_registro,id_situacao_matricula,dc_motivo_encerramento) %>% 
+  mutate(dt_inclusao_registro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y"))
+
+inativos_final <-  m_geral_inativos %>%
+ # select(-id_escola,-id_situacao_matricula) %>% 
+  left_join(m_geral_v3_i, by = "id_aluno")
+  
+  
+  
+
+  
+
+
+  #03.03.2022
+
+
+duplicados_marco <- t_matricula_03 %>% 
+  inner_join(t_enturmacao_03, by = c("id_matricula", "novo_simade")) %>%
+  inner_join(t_turma_03, by = c("id_turma", "novo_simade")) %>%
+  inner_join(t_endereco_principal_03, by = "id_escola")%>%
+  select(dc_tipo_ensino, dc_nivel, id_aluno) %>%
+  filter(dc_tipo_ensino %in% c("INTEGRAL", "INTEGRAL PROFISSIONAL"),
+         dc_nivel == "ENSINO MÉDIO") %>%
+  count(id_aluno) %>% 
+  mutate(fl_duplicado =ifelse(n > 1,1,0)) %>% 
+  unique() 
+
+
+#21 matriculas duplicadas
+m_geral_03 <- t_matricula_03 %>% 
+  inner_join(t_enturmacao_03, by = c("id_matricula", "novo_simade")) %>%
+  inner_join(t_turma_03, by = c("id_turma", "novo_simade")) %>%
+  select(-nome_escola) %>% 
+  inner_join(t_endereco_principal_03, by = "id_escola")%>%
+  select(dc_tipo_ensino, dc_nivel, id_aluno,nome_aluno,id_escola,nome_escola,dt_inclusao_registro,dt_alteracao_registro,id_situacao_matricula) %>%
+  filter(dc_tipo_ensino %in% c("INTEGRAL", "INTEGRAL PROFISSIONAL"),
+         dc_nivel == "ENSINO MÉDIO") %>%
+  left_join(duplicados_marco %>% select(id_aluno,fl_duplicado),by = "id_aluno") %>% 
+  filter(fl_duplicado == 0) %>% 
+  mutate(dt_inclusao_registro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y")) %>% 
+  mutate(diferenca = as_date("2022/09/28") - dt_inclusao_registro) %>% 
+  unique() 
+
+j_emti <- m_geral_03 %>%
+  left_join(m_geral_v3, by = "id_aluno") %>%
+  #count(id_aluno)
+  #filter(id_situacao_matricula == "A") %>% 
+  group_by(dc_tipo_ensino,
+           dc_nivel,
+           dc_tipo_ensino_atual,
+           dc_nivel_atual
+           ) %>% 
+  filter(!is.na(dc_tipo_ensino_atual)) %>% 
+  select(id_aluno,nome_aluno,dc_nivel,dc_tipo_ensino,dt_inclusao_registro,dc_tipo_ensino_atual,dc_nivel_atual,id_situacao_matricula) %>% 
+  mutate(dt_inclusao_registro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y"))
+
+inativos_final <-  m_geral %>%
+ # select(-id_escola,-id_situacao_matricula) %>% 
+  left_join(m_geral_v3, by = "id_aluno") %>%
+  #count(id_aluno)
+  #filter(id_situacao_matricula == "A") %>% 
+  filter(is.na(dc_tipo_ensino_atual)) %>% 
+  inner_join(motivo_encerramento %>% select(-dc_tipo_ensino,-dc_nivel,-dt_inclusao_registro,-diferenca,-nome_aluno), by = "id_aluno") %>% 
+  select(id_aluno,nome_aluno,id_escola,nome_escola,dc_nivel,dc_tipo_ensino,dt_inclusao_registro,dt_alteracao_registro,id_situacao_matricula,dc_motivo_encerramento) %>% 
+  mutate(dt_alteracao_registro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y")) %>%
+  select(-nome_aluno,-id_escola,-nome_escola,-id_situacao_matricula,-dc_tipo_ensino,-dt_inclusao_registro,-dc_motivo_encerramento) %>% 
+  left_join(t_matricula,by = "id_aluno" ) %>% 
+  mutate(dt_inclusao_registro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y")) %>% 
+  select(id_aluno,nome_aluno,id_escola,nome_escola,dc_nivel,dc_tipo_ensino,dt_inclusao_registro,dt_alteracao_registro,id_situacao_matricula,dc_motivo_encerramento) %>% 
+  filter(id_situacao_matricula == "I",
+         dc_tipo_ensino %in% c("INTEGRAL PROFISSIONAL","INTEGRAL"))
+
+
+encerramento_emti <- m_geral_03 %>% 
+  select(-dt_inclusao_registro) %>% 
+  #select(-dc_tipo_ensino) %>% 
+  inner_join(t_matricula %>% filter(dc_tipo_ensino %in% c("INTEGRAL PROFISSIONAL","INTEGRAL")), by = "id_aluno") %>% 
+  filter(id_situacao_matricula != "A") %>%
+   mutate(dt_inclusao_registro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y")) %>% 
+  mutate(diferenca = as_date("2022/09/28") - dt_inclusao_registro, 
+         mes = month(dt_inclusao_registro))# %>% 
+  #count(id_aluno)
+  
+teste <- encerramento_emti %>% 
+  dplyr::group_by(id_aluno) %>% 
+  dplyr::summarise(diferenca = min(diferenca)) %>% 
+  left_join(t_matricula2 %>% select(id_aluno,dc_tipo_ensino,dc_nivel), by = "id_aluno") %>% 
+  filter(dc_tipo_ensino %in% c("INTEGRAL PROFISSIONAL","INTEGRAL")) %>% 
+  #count(id_aluno)
+  filter(is.na(dc_tipo_ensino)) %>% 
+    unique()
+
+
+```
+
+
+```{r teste}
+
+situacao_atual <- j_emti %>% 
+  mutate(id_situacao_matricula_03 = id_situacao_matricula) %>% 
+  select(-id_situacao_matricula,-nome_aluno,-dt_inclusao_registro,-dc_tipo_ensino) %>% 
+  left_join(t_matricula, by = "id_aluno") %>% 
+  filter(id_situacao_matricula == "A") %>% 
+   select(id_aluno,nome_aluno,id_escola,nome_escola,dc_nivel,dc_tipo_ensino.x,dt_inclusao_registro,
+          dc_tipo_ensino_atual,dc_nivel_atual) %>% 
+  mutate(dt_inclusao_registro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y"))
+
+
+
+```
+
+
+
+
+```{r saida}
+
+setwd(file.path(((diretorio)), "Diversos","Saidas"))
+
+write_xlsx(final , "2022_10_04_Relatório_de_Evadidos_do_EMTI_v3.xlsx")
+
+```
+
+```{r ajuste_tabela}
+#### IGNORAR CHUNK
+
+setwd(file.path(diretorio, "Diversos", "saidas"))
+ativos <- read_xlsx(list.files(pattern = "Relatório_EMTI"), sheet = 1, skip = 5)
+
+setwd(file.path(diretorio, "Diversos", "saidas"))
+inativos <- read_xlsx(list.files(pattern = "Relatório_EMTI"), sheet = 2, skip = 5)
+
+matricula_marco <- t_matricula_03 %>%
+  left_join(t_endereco_principal_03, "id_escola") %>%
+  left_join(t_enturmacao_03) %>%
+  left_join(t_turma_03) %>%
+  select(-id_matricula, -tp_zona_escola, -dc_zona_diferenciada,
+         -id_turma, -dc_etapa, -dc_turno, novo_simade) %>% 
+  mutate(dt_inclusao_registro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y"))
+
+matricula_setembro <- t_matricula %>%
+  left_join(t_endereco_principal, "id_escola") %>%
+  left_join(t_enturmacao) %>%
+  left_join(t_turma) %>% 
+  mutate(dt_inclusao_registro_setembro = as.Date(dt_inclusao_registro, format = "%m/%d/%Y")) %>% 
+  select(id_aluno, id_escola, dc_tipo_ensino, dc_nivel,
+         id_situacao_matricula, dc_motivo_encerramento,
+         dt_inclusao_registro_setembro) %>%
+  
+  unique()
+
+ativos_escola <- ativos %>%
+  left_join(matricula_marco,
+            by = c("cod. Aluno" = "id_aluno",
+                   "Tipo de ensino em março" = "dc_tipo_ensino",
+                   "Nível em março"="dc_nivel",
+                   "Data de inclusão do registro" = "dt_inclusao_registro")) %>%
+  rename(id_escola_marco = id_escola) %>% 
+  left_join(matricula_setembro %>%
+              filter(id_situacao_matricula == "A") %>%
+              select(-dc_motivo_encerramento),
+            by = c("cod. Aluno" = "id_aluno",
+                   "Tipo de ensino atual"="dc_tipo_ensino",
+                   "Nível atual" = "dc_nivel")) %>% 
+  rename(id_escola_setembro = id_escola) %>%
+  unique()
+
+inativos_escola <- inativos %>% 
+  left_join(matricula_marco,
+            by = c("Cod. Aluno" = "id_aluno",
+                   "Tipo de ensino" = "dc_tipo_ensino",
+                   "Nivel do aluno"="dc_nivel",
+                   "Data de inclusão do registro" = "dt_inclusao_registro")) %>%
+  rename(id_escola_marco = id_escola) %>% 
+  left_join(matricula_setembro %>%
+              filter(id_situacao_matricula != "A") %>%
+              select(-dc_tipo_ensino, - dc_nivel, -id_escola),
+            by = c("Cod. Aluno" = "id_aluno",
+                   "Situação da matricula"="id_situacao_matricula",
+                   "Motivo do encerramento" = "dc_motivo_encerramento")) %>% 
+  unique()
+
+setwd(file.path(diretorio, "Diversos","Saidas"))
+
+write_xlsx(ativos_escola, "2022_09_30_ativos_emti.xlsx")
+
+setwd(file.path(diretorio, "Diversos","Saidas"))
+
+write_xlsx(inativos_escola, "2022_09_30_inativos_emti.xlsx")
+
+```
+
